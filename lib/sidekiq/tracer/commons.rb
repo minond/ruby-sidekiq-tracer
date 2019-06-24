@@ -15,6 +15,13 @@ module Sidekiq
           'sidekiq.args' => job['args'].join(", ")
         }
       end
+
+      def extract(job)
+        carrier = job[TRACE_CONTEXT_KEY]
+        return unless carrier
+
+        tracer.extract(OpenTracing::FORMAT_TEXT_MAP, carrier)
+      end
     end
   end
 end

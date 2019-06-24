@@ -11,8 +11,9 @@ module Sidekiq
       end
 
       def call(worker_class, job, queue, redis_pool)
+        parent_span_context = extract(job) || ::OpenTracing.active_span
         span = tracer.start_span(operation_name(job),
-                                 child_of: active_span.respond_to?(:call) ? active_span.call : active_span,
+                                 child_of: parent_span_context,
                                  tags: tags(job, 'client'))
 
         inject(span, job)
