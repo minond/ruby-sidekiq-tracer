@@ -13,9 +13,10 @@ module Sidekiq
       def call(worker, job, queue)
         parent_span_context = extract(job)
 
-        span = tracer.start_span(operation_name(job),
-                                 child_of: parent_span_context,
-                                 tags: tags(job, 'server'))
+        scope = tracer.start_active_span("Worker " + operation_name(job),
+                                         child_of: parent_span_context,
+                                         tags: tags(job, 'server'))
+        span = scope.span if scope
 
         yield
       rescue Exception => e
@@ -25,7 +26,7 @@ module Sidekiq
         end
         raise
       ensure
-        span.finish if span
+        scope.close if scope
       end
 
       private
