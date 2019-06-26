@@ -13,7 +13,7 @@ module Sidekiq
       def call(worker, job, queue)
         parent_span_context = extract(job)
 
-        scope = tracer.start_active_span("Worker " + operation_name(job),
+        scope = tracer.start_active_span(operation_name(job),
                                          child_of: parent_span_context,
                                          tags: tags(job, 'server'))
         span = scope.span if scope

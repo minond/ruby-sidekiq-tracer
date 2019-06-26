@@ -2,7 +2,7 @@ module Sidekiq
   module Tracer
     module Commons
       def operation_name(job)
-        job['class']
+        "Worker " + job['class']
       end
 
       def tags(job, kind)
