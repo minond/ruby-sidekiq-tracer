@@ -20,7 +20,7 @@ module Sidekiq
         carrier = job[TRACE_CONTEXT_KEY]
         return unless carrier
 
-        tracer.extract(OpenTracing::FORMAT_TEXT_MAP, carrier)
+        ::OpenTracing.extract(OpenTracing::FORMAT_TEXT_MAP, carrier)
       end
     end
   end

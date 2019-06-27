@@ -3,19 +3,11 @@ module Sidekiq
     class ServerMiddleware
       include Commons
 
-      attr_reader :tracer, :active_span
-
-      def initialize(tracer:, active_span:)
-        @tracer = tracer
-        @active_span = active_span
-      end
-
       def call(worker, job, queue)
-        parent_span_context = extract(job)
-
-        scope = tracer.start_active_span(operation_name(job),
-                                         child_of: parent_span_context,
-                                         tags: tags(job, 'server'))
+        parent_span = extract(job) || ::OpenTracing.active_span
+        scope = ::OpenTracing.start_active_span(operation_name(job),
+                                                child_of: parent_span,
+                                                tags: tags(job, 'server'))
         span = scope.span if scope
 
         yield

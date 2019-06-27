@@ -9,33 +9,49 @@ require "sidekiq/tracer/server_middleware"
 module Sidekiq
   module Tracer
     class << self
-      def instrument(tracer: OpenTracing.global_tracer, active_span: nil)
-        instrument_client(tracer: tracer, active_span: active_span)
-        instrument_server(tracer: tracer, active_span: active_span)
+      def instrument
+        instrument_client
+        instrument_server
       end
 
-      def instrument_client(tracer: OpenTracing.global_tracer, active_span: nil)
-        Sidekiq.configure_client do |config|
+      def instrument_client
+        configure_client :add
+      end
+
+      def instrument_server
+        configure_server :add
+      end
+
+      def uninstrument_client
+        configure_client :remove
+      end
+
+      def uninstrument_server
+        configure_server :remove
+      end
+
+      def configure_client(method)
+        ::Sidekiq.configure_client do |config|
           config.client_middleware do |chain|
-            chain.add Sidekiq::Tracer::ClientMiddleware, tracer: tracer, active_span: active_span
+            chain.public_send(method, Sidekiq::Tracer::ClientMiddleware)
           end
         end
       end
 
-      def instrument_server(tracer: OpenTracing.global_tracer, active_span: nil)
-        Sidekiq.configure_server do |config|
+      def configure_server(method)
+        ::Sidekiq.configure_server do |config|
           config.client_middleware do |chain|
-            chain.add Sidekiq::Tracer::ClientMiddleware, tracer: tracer, active_span: active_span
+            chain.public_send(method, Sidekiq::Tracer::ClientMiddleware)
           end
 
           config.server_middleware do |chain|
-            chain.add Sidekiq::Tracer::ServerMiddleware, tracer: tracer, active_span: active_span
+            chain.public_send(method, Sidekiq::Tracer::ServerMiddleware)
           end
         end
 
         if defined?(Sidekiq::Testing)
-          Sidekiq::Testing.server_middleware do |chain|
-            chain.add Sidekiq::Tracer::ServerMiddleware, tracer: tracer, active_span: active_span
+          ::Sidekiq::Testing.server_middleware do |chain|
+            chain.public_send(method, Sidekiq::Tracer::ServerMiddleware)
           end
         end
       end

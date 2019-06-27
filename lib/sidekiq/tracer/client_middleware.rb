@@ -3,18 +3,11 @@ module Sidekiq
     class ClientMiddleware
       include Commons
 
-      attr_reader :tracer, :active_span
-
-      def initialize(tracer:, active_span:)
-        @tracer = tracer
-        @active_span = active_span
-      end
-
       def call(worker_class, job, queue, redis_pool)
-        parent_span_context = extract(job) || ::OpenTracing.active_span
-        span = tracer.start_span(operation_name(job),
-                                 child_of: parent_span_context,
-                                 tags: tags(job, 'client'))
+        parent_span = extract(job) || ::OpenTracing.active_span
+        span = ::OpenTracing.start_span(operation_name(job),
+                                        child_of: parent_span,
+                                        tags: tags(job, 'client'))
 
         inject(span, job)
 
@@ -33,7 +26,7 @@ module Sidekiq
 
       def inject(span, job)
         carrier = {}
-        tracer.inject(span.context, OpenTracing::FORMAT_TEXT_MAP, carrier)
+        ::OpenTracing.inject(span.context, OpenTracing::FORMAT_TEXT_MAP, carrier)
         job[TRACE_CONTEXT_KEY] = carrier
       end
     end
