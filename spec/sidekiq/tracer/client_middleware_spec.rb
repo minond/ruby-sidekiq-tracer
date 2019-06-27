@@ -1,13 +1,19 @@
 require "spec_helper"
 
-RSpec.describe Sidekiq::Tracer::ClientMiddleware do
-  let(:tracer) { Test::Tracer.new }
+RSpec.describe ::Sidekiq::Tracer::ClientMiddleware do
+  let(:tracer) { ::OpenTracingTestTracer.build }
+
+  before do
+    ::OpenTracing.global_tracer = tracer
+    ::Sidekiq::Tracer.instrument_client
+  end
+
+  after do
+    ::Sidekiq::Tracer.uninstrument_client
+  end
 
   describe "pushing to the queue" do
-    before do
-      Sidekiq::Tracer.instrument_client(tracer: tracer)
-      schedule_test_job
-    end
+    before { schedule_test_job }
 
     it "still enqueues job to the queue" do
       expect(TestJob.jobs.size).to eq(1)
@@ -15,17 +21,14 @@ RSpec.describe Sidekiq::Tracer::ClientMiddleware do
   end
 
   describe "auto-instrumentation" do
-    before do
-      Sidekiq::Tracer.instrument_client(tracer: tracer)
-      schedule_test_job
-    end
+    before { schedule_test_job }
 
     it "creates a new span" do
-      expect(tracer).to have_spans
+      expect(tracer.spans).to_not be_empty
     end
 
     it "sets operation_name to job name" do
-      expect(tracer).to have_span("TestJob")
+      expect(tracer.spans.first.operation_name).to eq "Worker TestJob"
     end
 
     it "sets standard OT tags" do
@@ -33,7 +36,7 @@ RSpec.describe Sidekiq::Tracer::ClientMiddleware do
         ['component', 'Sidekiq'],
         ['span.kind', 'client']
       ].each do |key, value|
-        expect(tracer).to have_span.with_tag(key, value)
+        expect(tracer.spans.first.tags).to include(key => value)
       end
     end
 
@@ -44,43 +47,34 @@ RSpec.describe Sidekiq::Tracer::ClientMiddleware do
         ['sidekiq.args', "value1, value2, 1"],
         ['sidekiq.jid', /\S+/]
       ].each do |key, value|
-        expect(tracer).to have_span.with_tag(key, value)
+        expect(tracer.spans.first.tags).to include(key => value)
       end
     end
   end
 
   describe "active span propagation" do
-    let(:root_span) { tracer.start_span("root") }
-
     before do
-      Sidekiq::Tracer.instrument_client(tracer: tracer, active_span: -> { root_span })
-      schedule_test_job
+      ::OpenTracing.start_active_span("root") do
+        schedule_test_job
+      end
     end
 
     it "creates the new span with active span trace_id" do
-      expect(tracer).to have_traces(1)
-      expect(tracer).to have_spans(2)
+      expect(tracer.spans.size).to be 2
     end
 
     it "creates the new span with active span as a parent" do
-      expect(tracer).to have_span.with_parent(root_span)
+      expect(tracer.spans[1].context.parent_id).to eq tracer.spans.first.context.span_id
     end
   end
 
   describe "span context injection" do
-    before do
-      Sidekiq::Tracer.instrument_client(tracer: tracer)
-      schedule_test_job
-    end
+    before { schedule_test_job }
 
     it "injects span context to enqueued job" do
-      enqueued_span = tracer.finished_spans.last
-
-      job = TestJob.jobs.last
-      carrier = job['Trace-Context']
-      extracted_span_context = tracer.extract(OpenTracing::FORMAT_TEXT_MAP, carrier)
-
-      expect(enqueued_span.context).to eq(extracted_span_context)
+      carrier = TestJob.jobs.last[::Sidekiq::Tracer::TRACE_CONTEXT_KEY]
+      job_context = ::OpenTracing.extract(OpenTracing::FORMAT_TEXT_MAP, carrier)
+      expect(job_context.span_id).to eq tracer.spans.first.context.span_id
     end
   end
 
@@ -89,7 +83,7 @@ RSpec.describe Sidekiq::Tracer::ClientMiddleware do
   end
 
   class TestJob
-    include Sidekiq::Worker
+    include ::Sidekiq::Worker
 
     def perform(*args)
     end
