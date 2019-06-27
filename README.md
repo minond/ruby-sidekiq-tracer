@@ -23,31 +23,30 @@ Or install it yourself as:
 The gem hooks up into Sidekiq through [middlewares](https://github.com/mperham/sidekiq/wiki/Middleware) - similar to Rack. Both server-side, and client-side middlewares are supported.
 
 * Client-side middleware runs before the pushing of the job to Redis and injects the current span context into the job's metadata.
-* Server-side runs around job processing, extracts the context from the job metadata and creates a new span for the server-side proessing.
+* Server-side runs around job processing, extracts the context from the job metadata and creates a new span for the server-side processing.
 
-To instrument Sidekiq (both sides), you need to specify at least a tracer instance and optionally an active span provider - a proc which returns a current active span. The gem plays nicely with [spanmanager](https://github.com/iaintshine/ruby-spanmanager).
+
+Run the code below and you are all set:
 
 ```ruby
 require "sidekiq-opentracing"
 
-Sidekiq::Tracer.instrument(tracer: OpenTracing.global_tracer,
-                           active_span: -> { OpenTracing.global_tracer.active_span })
+::Sidekiq::Tracer.instrument
 ```
 
-And you are all set.
 
 The code below shows how to register and manage middlewares on your own.
 
 Server-side:
 
 ```ruby
-Sidekiq.configure_server do |config|
+::Sidekiq.configure_server do |config|
   config.client_middleware do |chain|
-    chain.add Sidekiq::Tracer::ClientMiddleware, tracer: OpenTracing.global_tracer
+    chain.add ::Sidekiq::Tracer::ClientMiddleware
   end
 
   config.server_middleware do |chain|
-    chain.add Sidekiq::Tracer::ServerMiddleware, tracer: OpenTracing.global_tracer
+    chain.add ::Sidekiq::Tracer::ServerMiddleware
   end
 end
 ```
@@ -55,9 +54,9 @@ end
 Client-side:
 
 ```ruby
-Sidekiq.configure_client do |config|
+::Sidekiq.configure_client do |config|
   config.client_middleware do |chain|
-    chain.add Sidekiq::Tracer::ClientMiddleware, tracer: OpenTracing.global_tracer
+    chain.add ::Sidekiq::Tracer::ClientMiddleware
   end
 end
 ```
