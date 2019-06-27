@@ -4,6 +4,8 @@ require "sidekiq-opentracing"
 require "sidekiq/testing"
 require "pry"
 
+require "test_worker"
+
 Sidekiq::Testing.fake!
 
 RSpec.configure do |config|

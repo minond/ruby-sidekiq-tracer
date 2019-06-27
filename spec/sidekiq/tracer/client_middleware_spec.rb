@@ -13,22 +13,22 @@ RSpec.describe ::Sidekiq::Tracer::ClientMiddleware do
   end
 
   describe "pushing to the queue" do
-    before { schedule_test_job }
+    before { TestWorker.schedule_test_job }
 
     it "still enqueues job to the queue" do
-      expect(TestJob.jobs.size).to eq(1)
+      expect(TestWorker.jobs.size).to eq(1)
     end
   end
 
   describe "auto-instrumentation" do
-    before { schedule_test_job }
+    before { TestWorker.schedule_test_job }
 
     it "creates a new span" do
       expect(tracer.spans).to_not be_empty
     end
 
     it "sets operation_name to job name" do
-      expect(tracer.spans.first.operation_name).to eq "Worker TestJob"
+      expect(tracer.spans.first.operation_name).to eq "Worker TestWorker"
     end
 
     it "sets standard OT tags" do
@@ -55,7 +55,7 @@ RSpec.describe ::Sidekiq::Tracer::ClientMiddleware do
   describe "active span propagation" do
     before do
       ::OpenTracing.start_active_span("root") do
-        schedule_test_job
+        TestWorker.schedule_test_job
       end
     end
 
@@ -69,23 +69,12 @@ RSpec.describe ::Sidekiq::Tracer::ClientMiddleware do
   end
 
   describe "span context injection" do
-    before { schedule_test_job }
+    before { TestWorker.schedule_test_job }
 
     it "injects span context to enqueued job" do
-      carrier = TestJob.jobs.last[::Sidekiq::Tracer::TRACE_CONTEXT_KEY]
+      carrier = TestWorker.jobs.last[::Sidekiq::Tracer::TRACE_CONTEXT_KEY]
       job_context = ::OpenTracing.extract(OpenTracing::FORMAT_TEXT_MAP, carrier)
       expect(job_context.span_id).to eq tracer.spans.first.context.span_id
-    end
-  end
-
-  def schedule_test_job
-    TestJob.perform_async("value1", "value2", 1)
-  end
-
-  class TestJob
-    include ::Sidekiq::Worker
-
-    def perform(*args)
     end
   end
 end

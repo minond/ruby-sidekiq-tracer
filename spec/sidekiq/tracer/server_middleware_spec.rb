@@ -14,8 +14,8 @@ RSpec.describe ::Sidekiq::Tracer::ServerMiddleware do
 
   describe "auto-instrumentation" do
     before do
-      schedule_test_job
-      TestJob.drain
+      TestWorker.schedule_test_job
+      TestWorker.drain
     end
 
     it "creates a new span" do
@@ -23,7 +23,7 @@ RSpec.describe ::Sidekiq::Tracer::ServerMiddleware do
     end
 
     it "sets operation_name to job name" do
-      expect(tracer.spans.first.operation_name).to eq "Worker TestJob"
+      expect(tracer.spans.first.operation_name).to eq "Worker TestWorker"
     end
 
     it "sets standard OT tags" do
@@ -51,9 +51,9 @@ RSpec.describe ::Sidekiq::Tracer::ServerMiddleware do
     before do
       ::Sidekiq::Tracer.instrument
       ::OpenTracing.start_active_span("root") do
-        schedule_test_job
+        TestWorker.schedule_test_job
       end
-      TestJob.drain
+      TestWorker.drain
     end
 
     after do
@@ -71,17 +71,6 @@ RSpec.describe ::Sidekiq::Tracer::ServerMiddleware do
 
       expect(root_span.span_id).to eq client_span.parent_id
       expect(client_span.span_id).to eq server_span.parent_id
-    end
-  end
-
-  def schedule_test_job
-    TestJob.perform_async("value1", "value2", 1)
-  end
-
-  class TestJob
-    include ::Sidekiq::Worker
-
-    def perform(*args)
     end
   end
 end
